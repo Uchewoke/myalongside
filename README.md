@@ -192,29 +192,36 @@ Production deploy is configured for `apps/web` on Vercel with Neon-backed envs.
 
 ### Vercel + Neon production flow
 
-1) Prepare Neon prod URL in `.env.neon`:
+1) In Vercel Project Settings, set Root Directory to `apps/web` and Framework Preset to `Next.js`.
+
+2) Prepare Neon prod URL in `.env.neon`:
 
 - `NEON_DATABASE_URL_PROD=...`
 
-2) Generate production env file from Neon:
+3) Generate production env file from Neon:
 
 ```bash
 npm run neon:sync:prod-env
 ```
 
-3) Add env vars in Vercel project settings (Production):
+4) Add env vars in Vercel project settings (Production):
 
 - `DATABASE_URL`
 - `NEXT_PUBLIC_API_BASE`
 - `WEB_URL`
 - `ADMIN_URL`
 
-4) Build and deploy:
+5) Build and deploy:
 
 ```bash
 npm run vercel:build
 npm run vercel:deploy
 ```
+
+Vercel build commands are app-local (no workspace flags):
+
+- Build Command: `npm run build`
+- Dev Command: `npm run dev`
 
 ### Optional Vite prototype (if still used)
 
@@ -231,6 +238,4 @@ Typical monorepo build flow:
 ```bash
 npm install
 npm run build
-```#   M y A l o n g s i d e 
- 
- 
+```
