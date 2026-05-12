@@ -1,0 +1,6 @@
+node_modules
+backend
+apps/admin
+.env
+.env.*
+.vscode

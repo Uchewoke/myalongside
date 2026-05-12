@@ -14,6 +14,17 @@ npm install
 npm run dev
 ```
 
+## Database Setup
+
+**First time?** Follow [DATABASE_SETUP.md](DATABASE_SETUP.md) for complete Neon + Prisma configuration.
+
+Quick checklist:
+```bash
+cp .env.neon.example .env.neon     # Add your Neon URLs
+npm run db:setup                    # Initialize local DB + seed
+npm run dev                         # Start all services
+```
+
 ## Neon Branch Workflow
 
 This workspace is now configured for a branch-safe Neon setup with separate environments:
@@ -220,5 +231,6 @@ Typical monorepo build flow:
 ```bash
 npm install
 npm run build
-```#   M y A l o n g s i d e  
+```#   M y A l o n g s i d e 
+ 
  

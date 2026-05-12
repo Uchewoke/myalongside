@@ -1,0 +1,183 @@
+// This is your Prisma schema file
+// Learn more at https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────
+// Enums
+// ──────────────────────────────────────────────
+
+enum Role {
+  SEEKER
+  MENTOR
+  ADMIN
+}
+
+enum MatchStatus {
+  PENDING
+  ACTIVE
+  PAUSED
+  COMPLETED
+  DECLINED
+}
+
+enum EventStatus {
+  GOING_THROUGH
+  SURVIVED
+  BOTH
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+enum MessageType {
+  TEXT
+  SYSTEM
+}
+
+// ──────────────────────────────────────────────
+// Models
+// ──────────────────────────────────────────────
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  passwordHash   String
+  name           String
+  avatar         String?
+  role           Role     @default(SEEKER)
+  bio            String?
+  location       String?
+  languages      String[]
+  isVerified     Boolean  @default(false)
+  isBanned       Boolean  @default(false)
+  emailConfirmed Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  mentorProfile   MentorProfile?
+  userLifeEvents  UserLifeEvent[]
+  seekerMatches   Match[]         @relation("SeekerMatches")
+  mentorMatches   Match[]         @relation("MentorMatches")
+  sentMessages    Message[]       @relation("SentMessages")
+  reportsFiled    Report[]        @relation("Reporter")
+  reportsReceived Report[]        @relation("Reported")
+  refreshTokens   RefreshToken[]
+}
+
+model MentorProfile {
+  id              String  @id @default(cuid())
+  userId          String  @unique
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tagline         String
+  yearsExperience Int     @default(0)
+  isAvailable     Boolean @default(true)
+  rating          Float   @default(0)
+  reviewCount     Int     @default(0)
+  maxSeekers      Int     @default(5)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LifeEvent {
+  id          String @id @default(cuid())
+  slug        String @unique
+  label       String
+  emoji       String
+  category    String
+  description String
+
+  userLifeEvents UserLifeEvent[]
+}
+
+model UserLifeEvent {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lifeEventId String
+  lifeEvent   LifeEvent   @relation(fields: [lifeEventId], references: [id])
+  status      EventStatus @default(GOING_THROUGH)
+  startDate   DateTime?
+  notes       String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, lifeEventId])
+}
+
+model Match {
+  id           String      @id @default(cuid())
+  seekerId     String
+  seeker       User        @relation("SeekerMatches", fields: [seekerId], references: [id])
+  mentorId     String
+  mentor       User        @relation("MentorMatches", fields: [mentorId], references: [id])
+  lifeEventId  String?
+  matchScore   Int         @default(0)
+  status       MatchStatus @default(PENDING)
+  initiatorNote String?
+
+  conversation Conversation?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([seekerId, mentorId])
+}
+
+model Conversation {
+  id      String @id @default(cuid())
+  matchId String @unique
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id])
+  content        String
+  type           MessageType  @default(TEXT)
+  readAt         DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+model Report {
+  id          String       @id @default(cuid())
+  reporterId  String
+  reporter    User         @relation("Reporter", fields: [reporterId], references: [id])
+  reportedId  String
+  reported    User         @relation("Reported", fields: [reportedId], references: [id])
+  reason      String
+  details     String?
+  status      ReportStatus @default(OPEN)
+  reviewNote  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}

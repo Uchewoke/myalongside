@@ -1,0 +1,38 @@
+{
+  "name": "myalongside",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "npm run dev:web",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:admin": "npm run dev --workspace=apps/admin",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:vite": "npx vite",
+    "build": "npm run build --workspaces --if-present",
+    "build:web:prod": "npm run build --workspace=apps/web",
+    "build:vite": "npx vite build",
+    "lint": "npm run lint --workspaces --if-present",
+    "preview": "npm run preview --workspace=apps/web",
+    "preview:vite": "npx vite preview",
+    "vercel:build": "npx vercel build",
+    "vercel:deploy": "npx vercel --prod",
+    "prisma:migrate:dev": "npm run prisma:migrate:dev --workspace=backend",
+    "prisma:migrate:deploy": "npm run prisma:migrate:deploy --workspace=backend",
+    "prisma:seed": "npm run prisma:seed --workspace=backend",
+    "prisma:studio": "npm run prisma:studio --workspace=backend",
+    "prisma:reset": "npm run prisma:migrate:reset --workspace=backend -- --force",
+    "db:setup": "node scripts/db-setup.js",
+    "neon:use:local": "node scripts/neon-switch.js local",
+    "neon:use:staging": "node scripts/neon-switch.js staging",
+    "neon:use:prod": "node scripts/neon-switch.js prod",
+    "neon:sync:prod-env": "node scripts/neon-sync-prod-env.js"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.0",
+    "typescript": "^5.4.5"
+  }
+}
