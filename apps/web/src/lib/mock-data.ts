@@ -1,10 +1,12 @@
 import { LifeEventId } from "@/lib/constants";
+import type { PublicProfileSettings } from "@/lib/public-profile";
 
 export interface MockUser {
   id: string;
   name: string;
   avatar: string;
   role: "MENTOR" | "SEEKER";
+  gender?: "WOMAN" | "MAN" | "NON_BINARY";
   tagline: string;
   lifeEvents: LifeEventId[];
   yearsExperience?: number;
@@ -15,6 +17,10 @@ export interface MockUser {
   bio?: string;
   location?: string;
   languages?: string[];
+  matchScore?: number;
+  matchExplanation?: string;
+  matchedSignals?: string[];
+  settings?: PublicProfileSettings;
 }
 
 export interface MockMessage {
@@ -42,6 +48,7 @@ export const MOCK_MENTORS: MockUser[] = [
     name: "Sarah Chen",
     avatar: "https://api.dicebear.com/9.x/avataaars/svg?seed=SarahChen&backgroundColor=b6e3f4",
     role: "MENTOR",
+    gender: "WOMAN",
     tagline: "Turned divorce into my greatest growth chapter",
     lifeEvents: ["divorce", "mental-health", "fresh-start"],
     yearsExperience: 4,
@@ -49,7 +56,7 @@ export const MOCK_MENTORS: MockUser[] = [
     reviewCount: 127,
     isVerified: true,
     availability: "AVAILABLE",
-    bio: "I went through a painful divorce after 12 years of marriage. It shattered my world — but it also became the catalyst for the most profound self-discovery of my life. I'm here to walk with you through the fog and into the light.",
+    bio: "I went through a painful divorce after 12 years of marriage while raising two children. It shattered my world but also became the catalyst for deep self-discovery. I'm here to walk with you through the fog and into the light.",
     location: "San Francisco, CA",
     languages: ["English", "Mandarin"],
   },
@@ -58,6 +65,7 @@ export const MOCK_MENTORS: MockUser[] = [
     name: "Marcus Williams",
     avatar: "https://api.dicebear.com/9.x/avataaars/svg?seed=MarcusW&backgroundColor=c0aede",
     role: "MENTOR",
+    gender: "MAN",
     tagline: "From redundancy to thriving entrepreneur",
     lifeEvents: ["job-loss", "financial", "fresh-start"],
     yearsExperience: 6,
@@ -74,6 +82,7 @@ export const MOCK_MENTORS: MockUser[] = [
     name: "Dr. Priya Nair",
     avatar: "https://api.dicebear.com/9.x/avataaars/svg?seed=PriyaN&backgroundColor=d1f2a5",
     role: "MENTOR",
+    gender: "WOMAN",
     tagline: "Survived breast cancer. Now I help others face theirs.",
     lifeEvents: ["health-crisis", "mental-health"],
     yearsExperience: 7,
@@ -90,6 +99,7 @@ export const MOCK_MENTORS: MockUser[] = [
     name: "James O'Brien",
     avatar: "https://api.dicebear.com/9.x/avataaars/svg?seed=JamesOB&backgroundColor=ffd5dc",
     role: "MENTOR",
+    gender: "MAN",
     tagline: "5 years sober. Life is possible on the other side.",
     lifeEvents: ["addiction", "mental-health", "fresh-start"],
     yearsExperience: 5,
@@ -106,6 +116,7 @@ export const MOCK_MENTORS: MockUser[] = [
     name: "Elena Vasquez",
     avatar: "https://api.dicebear.com/9.x/avataaars/svg?seed=ElenaV&backgroundColor=ffdfba",
     role: "MENTOR",
+    gender: "WOMAN",
     tagline: "Rebuilt my life after moving continents alone",
     lifeEvents: ["relocation", "fresh-start", "mental-health"],
     yearsExperience: 3,
@@ -122,6 +133,7 @@ export const MOCK_MENTORS: MockUser[] = [
     name: "David Kim",
     avatar: "https://api.dicebear.com/9.x/avataaars/svg?seed=DavidK&backgroundColor=c9e4ca",
     role: "MENTOR",
+    gender: "MAN",
     tagline: "Grief taught me how to truly live",
     lifeEvents: ["grief", "mental-health"],
     yearsExperience: 8,
@@ -140,10 +152,18 @@ export const MOCK_CURRENT_USER: MockUser = {
   name: "Alex Rivera",
   avatar: "https://api.dicebear.com/9.x/avataaars/svg?seed=AlexR&backgroundColor=b6e3f4",
   role: "SEEKER",
+  gender: "NON_BINARY",
   tagline: "Looking for guidance through a career transition",
   lifeEvents: ["job-loss", "mental-health"],
   location: "Denver, CO",
   languages: ["English", "Spanish"],
+  settings: {
+    general: {
+      anonymousMode: false,
+      displayNameMode: "full-name",
+      allowCommunityProfile: true,
+    },
+  },
 };
 
 export const MOCK_CONVERSATIONS: MockConversation[] = [

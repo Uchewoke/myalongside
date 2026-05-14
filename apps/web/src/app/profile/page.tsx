@@ -1,13 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { LIFE_EVENTS } from "@/lib/constants";
 import { MOCK_CURRENT_USER } from "@/lib/mock-data";
+import { useAuthStore } from "@/store/useAuthStore";
+import { getPublicProfile } from "@/lib/public-profile";
 
 export default function ProfilePage() {
-  const [name, setName] = useState(MOCK_CURRENT_USER.name);
-  const [bio, setBio] = useState(MOCK_CURRENT_USER.bio ?? "");
-  const [selectedEvents, setSelectedEvents] = useState<string[]>(MOCK_CURRENT_USER.lifeEvents);
+  const authUser = useAuthStore((state) => state.user);
+  const currentUser = authUser ?? MOCK_CURRENT_USER;
+  const publicUser = getPublicProfile(currentUser);
+
+  const [name, setName] = useState(currentUser.name);
+  const [bio, setBio] = useState(currentUser.bio ?? "");
+  const [selectedEvents, setSelectedEvents] = useState<string[]>(currentUser.lifeEvents ?? []);
   const [saving, setSaving] = useState(false);
 
   const toggleEvent = (id: string) => {
@@ -27,6 +34,17 @@ export default function ProfilePage() {
         <p className="section-label">Profile</p>
         <h1 className="mt-2 text-2xl font-bold text-stone-900 md:text-3xl">Your Personal Story</h1>
       </div>
+
+      <section className="card mb-6 flex items-center gap-4 p-5">
+        <Image src={publicUser.avatar} alt={publicUser.displayName} width={56} height={56} className="rounded-full bg-stone-100" />
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Public preview</p>
+          <h2 className="text-lg font-semibold text-stone-900">{publicUser.displayName}</h2>
+          <p className="text-sm text-stone-500">
+            {publicUser.isAnonymous ? "Anonymous mode is active for profile surfaces." : "Your profile is shown with your full identity."}
+          </p>
+        </div>
+      </section>
 
       <form onSubmit={handleSave} className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <section className="card p-6">

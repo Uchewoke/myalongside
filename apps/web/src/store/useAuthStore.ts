@@ -1,12 +1,19 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { MOCK_CURRENT_USER } from "@/lib/mock-data";
+import type { PublicProfileSettings } from "@/lib/public-profile";
 
 interface AuthUser {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   avatar: string;
   role: "MENTOR" | "SEEKER";
+  bio?: string;
+  location?: string;
+  languages?: string[];
+  lifeEvents?: string[];
+  settings?: PublicProfileSettings;
 }
 
 interface AuthState {
@@ -21,7 +28,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      user: null,
+      user: MOCK_CURRENT_USER,
       token: null,
       isAuthenticated: false,
       login: (user, token) =>
@@ -30,7 +37,22 @@ export const useAuthStore = create<AuthState>()(
         set({ user: null, token: null, isAuthenticated: false }),
       updateUser: (partial) =>
         set((state) =>
-          state.user ? { user: { ...state.user, ...partial } } : {}
+          state.user
+            ? {
+                user: {
+                  ...state.user,
+                  ...partial,
+                  settings: {
+                    ...state.user.settings,
+                    ...partial.settings,
+                    general: {
+                      ...state.user.settings?.general,
+                      ...partial.settings?.general,
+                    },
+                  },
+                },
+              }
+            : {}
         ),
     }),
     { name: "myalongside-auth" }

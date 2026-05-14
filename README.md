@@ -188,40 +188,78 @@ The requested structure has been scaffolded with starter files for:
 
 ## Deployment
 
-Production deploy is configured for `apps/web` on Vercel with Neon-backed envs.
+Use separate Vercel projects for each Next.js app in this monorepo.
 
-### Vercel + Neon production flow
+### Vercel Project A: apps/web
 
-1) In Vercel Project Settings, set Root Directory to `apps/web` and Framework Preset to `Next.js`.
+Project settings:
 
-2) Prepare Neon prod URL in `.env.neon`:
+- Root Directory: `apps/web`
+- Framework Preset: `Next.js`
+- Install Command: `npm install`
+- Build Command: `npm run build`
+- Dev Command: `npm run dev`
+- Output Directory: leave empty (recommended for Next.js)
+
+Environment variables (Production):
+
+- `NEXT_PUBLIC_API_BASE`
+- `WEB_URL`
+- `ADMIN_URL`
+
+Neon-backed env flow:
+
+1) Prepare Neon prod URL in `.env.neon`:
 
 - `NEON_DATABASE_URL_PROD=...`
 
-3) Generate production env file from Neon:
+2) Generate production env file from Neon:
 
 ```bash
 npm run neon:sync:prod-env
 ```
 
-4) Add env vars in Vercel project settings (Production):
-
-- `DATABASE_URL`
-- `NEXT_PUBLIC_API_BASE`
-- `WEB_URL`
-- `ADMIN_URL`
-
-5) Build and deploy:
+3) Build and deploy:
 
 ```bash
 npm run vercel:build
 npm run vercel:deploy
 ```
 
-Vercel build commands are app-local (no workspace flags):
+### Vercel Project B: apps/admin
 
+Project settings:
+
+- Root Directory: `apps/admin`
+- Framework Preset: `Next.js`
+- Install Command: `npm install`
 - Build Command: `npm run build`
 - Dev Command: `npm run dev`
+- Output Directory: leave empty (recommended for Next.js)
+
+Environment variables (Production):
+
+- `NEXT_PUBLIC_API_BASE`
+- `WEB_URL`
+- `ADMIN_URL`
+
+### Monorepo safeguards (important)
+
+- Keep app-local build commands only. Do not use workspace flags in Vercel build command.
+- Do not ignore app folders needed by deployment. `apps/admin` must not appear in `.vercelignore`.
+- If deploying both apps, create two Vercel projects instead of switching Root Directory on one project.
+
+### If you see: ".next was not found"
+
+1) Confirm the Vercel project Root Directory points to the app being deployed.
+2) Confirm Build Command is `npm run build` and succeeds in build logs.
+3) Confirm Output Directory is empty (or `.next` if explicitly required).
+4) Confirm `.vercelignore` is not excluding that app directory.
+5) Re-run local verification:
+
+```bash
+npm run build --workspace=apps/admin
+```
 
 ### Optional Vite prototype (if still used)
 

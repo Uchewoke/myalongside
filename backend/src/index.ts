@@ -9,6 +9,9 @@ import authRoutes from "./routes/auth.routes";
 import mentorRoutes from "./routes/mentor.routes";
 import matchRoutes from "./routes/match.routes";
 import messageRoutes from "./routes/message.routes";
+import aiRoutes from "./routes/ai.routes";
+import postConversationRoutes from "./routes/post-conversation.routes";
+import adminRoutes from "./routes/admin.routes";
 
 // Load env from backend/.env first, then fallback to root/.env for monorepo runs.
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
@@ -58,6 +61,9 @@ app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/mentors", mentorRoutes);
 app.use("/api/matches", matchRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/ai", aiRoutes);
+app.use("/api/post-conversation", postConversationRoutes);
+app.use("/api/admin", adminRoutes);
 
 // ── 404 ──
 app.use((_req, res) => {

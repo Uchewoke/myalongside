@@ -19,19 +19,33 @@ import {
 import { clsx } from "clsx";
 import { useState } from "react";
 import { MOCK_CURRENT_USER } from "@/lib/mock-data";
+import { useAuthStore } from "@/store/useAuthStore";
+import { getPublicProfile } from "@/lib/public-profile";
 
-const NAV_ITEMS = [
+const SEEKER_NAV_ITEMS = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/intake", icon: Heart, label: "Get Started" },
   { href: "/find-mentor", icon: Users, label: "Find a Mentor" },
   { href: "/chat", icon: MessageCircle, label: "Messages", badge: 2 },
   { href: "/community", icon: BookOpen, label: "Community" },
   { href: "/profile", icon: User, label: "My Profile" },
 ];
 
+const MENTOR_NAV_ITEMS = [
+  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/chat", icon: MessageCircle, label: "Messages", badge: 2 },
+  { href: "/community", icon: BookOpen, label: "Community" },
+  { href: "/profile", icon: User, label: "Mentor Profile" },
+];
+
 export default function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const user = MOCK_CURRENT_USER;
+  const authUser = useAuthStore((state) => state.user);
+  const user = authUser ?? MOCK_CURRENT_USER;
+  const publicUser = getPublicProfile(user);
+  const navItems = user.role === "MENTOR" ? MENTOR_NAV_ITEMS : SEEKER_NAV_ITEMS;
+  const settingsLabel = user.role === "MENTOR" ? "Mentor Settings" : "Seeker Settings";
 
   return (
     <aside
@@ -48,7 +62,7 @@ export default function Sidebar() {
               <Heart className="h-4 w-4 text-white" fill="currentColor" />
             </div>
             <span className="text-base font-bold text-stone-900">
-              Mind<span className="text-brand-600">Bridge</span>
+              My<span className="text-brand-600">Alongside</span>
             </span>
           </Link>
         )}
@@ -66,7 +80,7 @@ export default function Sidebar() {
             Navigation
           </p>
         )}
-        {NAV_ITEMS.map(({ href, icon: Icon, label, badge }) => {
+        {navItems.map(({ href, icon: Icon, label, badge }) => {
           const isActive =
             href === "/dashboard"
               ? pathname === "/dashboard"
@@ -104,11 +118,15 @@ export default function Sidebar() {
       <div className="border-t border-stone-100 p-3">
         <Link
           href="/settings"
-          title={collapsed ? "Settings" : undefined}
-          className={clsx("sidebar-link", collapsed && "justify-center !px-2")}
+          title={collapsed ? settingsLabel : undefined}
+          className={clsx(
+            "sidebar-link",
+            pathname.startsWith("/settings") && "sidebar-link-active",
+            collapsed && "justify-center !px-2"
+          )}
         >
           <Settings className="h-[18px] w-[18px] flex-shrink-0" />
-          {!collapsed && <span>Settings</span>}
+          {!collapsed && <span>{settingsLabel}</span>}
         </Link>
 
         <button
@@ -124,14 +142,14 @@ export default function Sidebar() {
         {!collapsed && (
           <div className="mt-3 flex items-center gap-3 rounded-xl bg-stone-50 p-3">
             <Image
-              src={user.avatar}
-              alt={user.name}
+              src={publicUser.avatar}
+              alt={publicUser.displayName}
               width={36}
               height={36}
               className="rounded-full bg-stone-200"
             />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-stone-800">{user.name}</p>
+              <p className="truncate text-sm font-semibold text-stone-800">{publicUser.displayName}</p>
               <p className="truncate text-xs text-stone-400 capitalize">
                 {user.role.toLowerCase()}
               </p>

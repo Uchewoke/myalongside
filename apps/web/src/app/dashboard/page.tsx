@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -12,6 +14,8 @@ import {
 import { MOCK_MENTORS, MOCK_CONVERSATIONS, MOCK_CURRENT_USER } from "@/lib/mock-data";
 import { LIFE_EVENTS } from "@/lib/constants";
 import MentorCard from "@/components/MentorCard";
+import { useAuthStore } from "@/store/useAuthStore";
+import { getPublicProfile } from "@/lib/public-profile";
 
 const QUICK_STATS = [
   { label: "Active Matches", value: "3", icon: Users, color: "bg-brand-50 text-brand-600" },
@@ -21,13 +25,16 @@ const QUICK_STATS = [
 ];
 
 export default function DashboardPage() {
-  const user = MOCK_CURRENT_USER;
-  const userEvents = user.lifeEvents
+  const authUser = useAuthStore((state) => state.user);
+  const user = authUser ?? MOCK_CURRENT_USER;
+  const publicUser = getPublicProfile(user);
+  const lifeEvents = user.lifeEvents ?? MOCK_CURRENT_USER.lifeEvents;
+  const userEvents = lifeEvents
     .map((id) => LIFE_EVENTS.find((e) => e.id === id))
     .filter(Boolean);
 
   const suggestedMentors = MOCK_MENTORS.filter((m) =>
-    m.lifeEvents.some((e) => user.lifeEvents.includes(e))
+    m.lifeEvents.some((e) => lifeEvents.includes(e))
   ).slice(0, 3);
 
   return (
@@ -44,7 +51,7 @@ export default function DashboardPage() {
               You&apos;re not alone on this
             </div>
             <h1 className="mt-3 text-2xl font-extrabold text-white sm:text-3xl">
-              Welcome back, {user.name.split(" ")[0]} 👋
+              Welcome back, {publicUser.displayName.split(" ")[0]} 👋
             </h1>
             <p className="mt-2 max-w-lg text-stone-300">
               You have{" "}

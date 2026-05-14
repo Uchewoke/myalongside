@@ -2,14 +2,24 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { Send, Phone, Video, MoreHorizontal, ArrowLeft, CheckCircle } from "lucide-react";
+import { Send, Phone, Video, MoreHorizontal, ArrowLeft, CheckCircle, Sparkles, LogOut } from "lucide-react";
 import { MOCK_MENTORS, MOCK_MESSAGES, MOCK_CURRENT_USER, MockMessage } from "@/lib/mock-data";
 import { LIFE_EVENTS } from "@/lib/constants";
 import { clsx } from "clsx";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
+import { DraftIntroModal } from "@/components/DraftIntroModal";
+import { ResponseSuggestion } from "@/components/ResponseSuggestion";
+import { ConversationStarters } from "@/components/ConversationStarters";
+import { PostConversationModal } from "@/components/PostConversationModal";
+import { MentorCopilotPanel } from "@/components/MentorCopilotPanel";
+import { useAuthStore } from "@/store/useAuthStore";
+import { getPublicProfile } from "@/lib/public-profile";
 
 export default function ChatPage() {
+  const authUser = useAuthStore((state) => state.user);
+  const currentUser = authUser ?? MOCK_CURRENT_USER;
+  const publicUser = getPublicProfile(currentUser);
   const params = useParams<{ id: string }>();
   const mentorId = typeof params?.id === "string" ? params.id : undefined;
   const mentor = MOCK_MENTORS.find((m) => m.id === mentorId);
@@ -18,12 +28,19 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<MockMessage[]>(MOCK_MESSAGES);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isDraftModalOpen, setIsDraftModalOpen] = useState(false);
+  const [showResponseSuggestion, setShowResponseSuggestion] = useState(false);
+  const [firstMessageDraft, setFirstMessageDraft] = useState("");
+  const [isPostConversationOpen, setIsPostConversationOpen] = useState(false);
+  const [isMentorCopilotOpen, setIsMentorCopilotOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const sharedEvents = mentor.lifeEvents
     .map((id) => LIFE_EVENTS.find((e) => e.id === id))
     .filter(Boolean)
     .slice(0, 2);
+  
+  const lifeEvent = LIFE_EVENTS.find((e) => e.id === mentor.lifeEvents[0]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -39,7 +56,7 @@ export default function ChatPage() {
 
     const userMsg: MockMessage = {
       id: `msg-${Date.now()}`,
-      senderId: MOCK_CURRENT_USER.id,
+      senderId: currentUser.id,
       content: text,
       timestamp: "Just now",
       read: false,
@@ -121,6 +138,20 @@ export default function ChatPage() {
           <button className="rounded-xl p-2.5 text-stone-400 hover:bg-stone-100 transition-colors" title="Video call">
             <Video className="h-4 w-4" />
           </button>
+          <button
+            onClick={() => setIsMentorCopilotOpen(!isMentorCopilotOpen)}
+            className="rounded-xl p-2.5 text-stone-400 hover:bg-stone-100 transition-colors group"
+            title="Mentor Copilot"
+          >
+            <Sparkles className="h-4 w-4 group-hover:text-purple-600" />
+          </button>
+          <button
+            onClick={() => setIsPostConversationOpen(true)}
+            className="rounded-xl p-2.5 text-stone-400 hover:bg-stone-100 transition-colors group"
+            title="End conversation and reflect"
+          >
+            <LogOut className="h-4 w-4 group-hover:text-stone-600" />
+          </button>
           <button className="rounded-xl p-2.5 text-stone-400 hover:bg-stone-100 transition-colors" title="More options">
             <MoreHorizontal className="h-4 w-4" />
           </button>
@@ -140,8 +171,9 @@ export default function ChatPage() {
         </div>
 
         {messages.map((msg) => {
-          const isMe = msg.senderId === MOCK_CURRENT_USER.id;
-          const sender = isMe ? MOCK_CURRENT_USER : mentor;
+          const isMe = msg.senderId === currentUser.id;
+          const sender = isMe ? publicUser : mentor;
+          const senderName = isMe ? publicUser.displayName : mentor.name;
 
           return (
             <div
@@ -153,7 +185,7 @@ export default function ChatPage() {
             >
               <Image
                 src={sender.avatar}
-                alt={sender.name}
+                alt={senderName}
                 width={32}
                 height={32}
                 className="mb-1 flex-shrink-0 rounded-full bg-stone-100"
@@ -209,7 +241,29 @@ export default function ChatPage() {
       </div>
 
       {/* Input bar */}
-      <div className="border-t border-stone-100 px-4 py-4">
+      <div className="border-t border-stone-100 px-4 py-4 space-y-3">
+        {/* Show response suggestions for mentors */}
+        {showResponseSuggestion && messages.length > 0 && (
+          <ResponseSuggestion
+            conversationId={mentorId || ""}
+            seekerMessage={messages[messages.length - 1]?.content || ""}
+            onSelect={(suggestion) => {
+              setInput(suggestion);
+              setShowResponseSuggestion(false);
+            }}
+          />
+        )}
+
+        {/* Show conversation starters for first message */}
+        {messages.length === 0 && lifeEvent && (
+          <ConversationStarters
+            lifeEventId={mentor.lifeEvents[0]}
+            onSelect={(starter) => {
+              setInput(starter);
+            }}
+          />
+        )}
+
         <form onSubmit={sendMessage} className="flex items-center gap-3">
           <input
             type="text"
@@ -219,6 +273,14 @@ export default function ChatPage() {
             className="input-field flex-1 !py-3"
             disabled={isSending}
           />
+          <button
+            type="button"
+            onClick={() => setShowResponseSuggestion(!showResponseSuggestion)}
+            className="hidden sm:flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-stone-400 hover:bg-stone-100 transition-colors"
+            title="Get AI suggestions"
+          >
+            <Sparkles className="h-4 w-4" />
+          </button>
           <button
             type="submit"
             disabled={!input.trim() || isSending}
@@ -232,6 +294,44 @@ export default function ChatPage() {
           <a href="tel:988" className="font-medium text-brand-600">988</a> (US) or your local emergency services.
         </p>
       </div>
+
+      {/* Draft Intro Modal */}
+      <DraftIntroModal
+        mentorName={mentor.name}
+        isOpen={isDraftModalOpen}
+        onClose={() => setIsDraftModalOpen(false)}
+        onSelect={(message) => {
+          setFirstMessageDraft(message);
+          setInput(message);
+        }}
+        initialDraft={firstMessageDraft || "I'd love to connect with you about my experience..."}
+        mentorId={mentorId || ""}
+      />
+
+      {/* Post-Conversation Modal */}
+      <PostConversationModal
+        isOpen={isPostConversationOpen}
+        conversationId={mentorId || ""}
+        onClose={() => setIsPostConversationOpen(false)}
+        userName={publicUser.displayName}
+      />
+
+      {/* Mentor Copilot Panel */}
+      <MentorCopilotPanel
+        conversationId={mentorId || ""}
+        seekerMessage={messages.length > 0 ? messages[messages.length - 1]?.content || "" : ""}
+        onMessageSelect={(message) => {
+          setInput(message);
+        }}
+        lifeEvent={lifeEvent?.label}
+        discussionTopics={messages
+          .slice(-5)
+          .map((m) => m.content)
+          .filter((c) => c.length > 0)}
+        seekerChallenges={[]}
+        isOpen={isMentorCopilotOpen}
+        onClose={() => setIsMentorCopilotOpen(false)}
+      />
     </div>
   );
 }

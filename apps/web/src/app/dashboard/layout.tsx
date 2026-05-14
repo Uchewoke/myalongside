@@ -1,10 +1,16 @@
+"use client";
+
 import Sidebar from "@/components/Sidebar";
 import { Bell, Search } from "lucide-react";
 import Image from "next/image";
 import { MOCK_CURRENT_USER } from "@/lib/mock-data";
+import { useAuthStore } from "@/store/useAuthStore";
+import { getPublicProfile } from "@/lib/public-profile";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const user = MOCK_CURRENT_USER;
+  const authUser = useAuthStore((state) => state.user);
+  const user = authUser ?? MOCK_CURRENT_USER;
+  const publicUser = getPublicProfile(user);
 
   return (
     <div className="flex h-screen overflow-hidden bg-stone-50">
@@ -35,14 +41,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Avatar */}
             <div className="flex items-center gap-2.5">
               <Image
-                src={user.avatar}
-                alt={user.name}
+                src={publicUser.avatar}
+                alt={publicUser.displayName}
                 width={36}
                 height={36}
                 className="rounded-full bg-stone-100"
               />
               <div className="hidden sm:block">
-                <p className="text-sm font-semibold text-stone-800 leading-tight">{user.name}</p>
+                <p className="text-sm font-semibold text-stone-800 leading-tight">{publicUser.displayName}</p>
                 <p className="text-xs text-stone-400">Seeker</p>
               </div>
             </div>

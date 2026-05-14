@@ -113,6 +113,36 @@ export default function MentorCard({ mentor, compact = false }: MentorCardProps)
         ))}
       </div>
 
+      {mentor.matchExplanation && (
+        <div className="mt-4 rounded-2xl border border-brand-100 bg-brand-50/60 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-700">
+              AI Match Read
+            </p>
+            {typeof mentor.matchScore === "number" && (
+              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-brand-700 shadow-sm">
+                {mentor.matchScore}% fit
+              </span>
+            )}
+          </div>
+          <p className="mt-2 text-sm leading-relaxed text-stone-700">
+            {mentor.matchExplanation}
+          </p>
+          {mentor.matchedSignals && mentor.matchedSignals.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {mentor.matchedSignals.slice(0, 3).map((signal) => (
+                <span
+                  key={signal}
+                  className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-stone-600"
+                >
+                  {signal}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Footer */}
       <div className="mt-5 flex items-center justify-between border-t border-stone-100 pt-4">
         <div className="flex items-center gap-3">

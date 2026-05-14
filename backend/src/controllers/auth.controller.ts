@@ -2,7 +2,9 @@ import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
+import { AuthRequest } from "../middleware/auth.middleware";
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "change-this-secret-in-production";
 const REFRESH_SECRET = process.env.REFRESH_SECRET ?? "change-this-refresh-secret";
@@ -21,6 +23,164 @@ const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
+
+const seekerSettingsSchema = z.object({
+  introVisibility: z.enum(["matched-only", "all-verified-mentors"]).optional(),
+  allowMentorSuggestions: z.boolean().optional(),
+  weeklyDigest: z.boolean().optional(),
+  crisisCheckins: z.boolean().optional(),
+});
+
+const mentorSettingsSchema = z.object({
+  availableForNewSeekers: z.boolean().optional(),
+  maxActiveSeekers: z.number().int().min(1).max(40).optional(),
+  mentoringFocus: z.string().max(240).optional(),
+  showResponseTemplates: z.boolean().optional(),
+  weeklyInsights: z.boolean().optional(),
+});
+
+const generalSettingsSchema = z.object({
+  anonymousMode: z.boolean().optional(),
+  displayNameMode: z.enum(["full-name", "first-name-only", "anonymous"]).optional(),
+  allowCommunityProfile: z.boolean().optional(),
+  emailNotifications: z.boolean().optional(),
+  matchNotifications: z.boolean().optional(),
+  messageNotifications: z.boolean().optional(),
+  productAnnouncements: z.boolean().optional(),
+});
+
+const profileUpdateSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  avatar: z.string().max(500).optional(),
+  bio: z.string().max(1500).optional(),
+  location: z.string().max(120).optional(),
+  languages: z.array(z.string().min(1).max(40)).max(10).optional(),
+  settings: z
+    .object({
+      general: generalSettingsSchema.optional(),
+      seeker: seekerSettingsSchema.optional(),
+      mentor: mentorSettingsSchema.optional(),
+    })
+    .optional(),
+});
+
+function safeUser(user: {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  avatar: string | null;
+  bio: string | null;
+  location: string | null;
+  languages: string[];
+  settings: unknown;
+  mentorProfile?: {
+    tagline: string;
+    maxSeekers: number;
+    isAvailable: boolean;
+  } | null;
+}) {
+  const currentSettings =
+    user.settings && typeof user.settings === "object"
+      ? (user.settings as Record<string, unknown>)
+      : {};
+  const seeker =
+    currentSettings.seeker && typeof currentSettings.seeker === "object"
+      ? (currentSettings.seeker as Record<string, unknown>)
+      : {};
+  const mentor =
+    currentSettings.mentor && typeof currentSettings.mentor === "object"
+      ? (currentSettings.mentor as Record<string, unknown>)
+      : {};
+  const general =
+    currentSettings.general && typeof currentSettings.general === "object"
+      ? (currentSettings.general as Record<string, unknown>)
+      : {};
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    avatar: user.avatar,
+    bio: user.bio,
+    location: user.location,
+    languages: user.languages,
+    settings: {
+      general: {
+        anonymousMode:
+          typeof general.anonymousMode === "boolean" ? general.anonymousMode : false,
+        displayNameMode:
+          general.displayNameMode === "first-name-only" || general.displayNameMode === "anonymous"
+            ? general.displayNameMode
+            : "full-name",
+        allowCommunityProfile:
+          typeof general.allowCommunityProfile === "boolean"
+            ? general.allowCommunityProfile
+            : true,
+        emailNotifications:
+          typeof general.emailNotifications === "boolean"
+            ? general.emailNotifications
+            : true,
+        matchNotifications:
+          typeof general.matchNotifications === "boolean"
+            ? general.matchNotifications
+            : true,
+        messageNotifications:
+          typeof general.messageNotifications === "boolean"
+            ? general.messageNotifications
+            : true,
+        productAnnouncements:
+          typeof general.productAnnouncements === "boolean"
+            ? general.productAnnouncements
+            : false,
+      },
+      seeker: {
+        introVisibility:
+          seeker.introVisibility === "all-verified-mentors"
+            ? "all-verified-mentors"
+            : "matched-only",
+        allowMentorSuggestions:
+          typeof seeker.allowMentorSuggestions === "boolean"
+            ? seeker.allowMentorSuggestions
+            : true,
+        weeklyDigest:
+          typeof seeker.weeklyDigest === "boolean" ? seeker.weeklyDigest : true,
+        crisisCheckins:
+          typeof seeker.crisisCheckins === "boolean" ? seeker.crisisCheckins : true,
+      },
+      mentor: {
+        availableForNewSeekers:
+          typeof user.mentorProfile?.isAvailable === "boolean"
+            ? user.mentorProfile.isAvailable
+            : typeof mentor.availableForNewSeekers === "boolean"
+            ? mentor.availableForNewSeekers
+            : true,
+        maxActiveSeekers:
+          typeof user.mentorProfile?.maxSeekers === "number"
+            ? user.mentorProfile.maxSeekers
+            : typeof mentor.maxActiveSeekers === "number"
+            ? mentor.maxActiveSeekers
+            : 8,
+        mentoringFocus:
+          typeof user.mentorProfile?.tagline === "string" &&
+          user.mentorProfile.tagline.length > 0
+            ? user.mentorProfile.tagline
+            : typeof mentor.mentoringFocus === "string"
+            ? mentor.mentoringFocus
+            : "Career transitions and emotional resilience",
+        showResponseTemplates:
+          typeof mentor.showResponseTemplates === "boolean"
+            ? mentor.showResponseTemplates
+            : true,
+        weeklyInsights:
+          typeof mentor.weeklyInsights === "boolean"
+            ? mentor.weeklyInsights
+            : true,
+      },
+    },
+  };
+}
 
 function issueAccessToken(userId: string, role: string) {
   return jwt.sign({ sub: userId, role }, JWT_SECRET, { expiresIn: ACCESS_EXPIRY });
@@ -52,13 +212,29 @@ export async function signup(req: Request, res: Response): Promise<void> {
       email,
       passwordHash,
       role,
+      languages: [],
       userLifeEvents: {
         create: lifeEventSlugs.map((slug) => ({
-          lifeEvent: { connect: { slug } },
+          lifeEvent: {
+            connect: { slug },
+          },
         })),
       },
     },
-    select: { id: true, name: true, email: true, role: true, avatar: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      avatar: true,
+      bio: true,
+      location: true,
+      languages: true,
+      settings: true,
+      mentorProfile: {
+        select: { tagline: true, maxSeekers: true, isAvailable: true },
+      },
+    },
   });
 
   const accessToken = issueAccessToken(user.id, user.role);
@@ -73,7 +249,7 @@ export async function signup(req: Request, res: Response): Promise<void> {
     },
   });
 
-  res.status(201).json({ user, accessToken, refreshToken: rawRefresh });
+  res.status(201).json({ user: safeUser(user), accessToken, refreshToken: rawRefresh });
 }
 
 export async function login(req: Request, res: Response): Promise<void> {
@@ -84,10 +260,34 @@ export async function login(req: Request, res: Response): Promise<void> {
   }
 
   const { email, password } = parsed.data;
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      passwordHash: true,
+      role: true,
+      avatar: true,
+      bio: true,
+      location: true,
+      languages: true,
+      settings: true,
+      isBanned: true,
+      deletedAt: true,
+      mentorProfile: {
+        select: { tagline: true, maxSeekers: true, isAvailable: true },
+      },
+    },
+  });
 
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     res.status(401).json({ error: "Invalid email or password." });
+    return;
+  }
+
+  if (user.deletedAt) {
+    res.status(410).json({ error: "Account deactivated." });
     return;
   }
 
@@ -108,8 +308,224 @@ export async function login(req: Request, res: Response): Promise<void> {
     },
   });
 
-  const { passwordHash: _ph, ...safeUser } = user;
-  res.json({ user: safeUser, accessToken, refreshToken: rawRefresh });
+  const { passwordHash: _ph, ...publicUser } = user;
+  res.json({ user: safeUser(publicUser), accessToken, refreshToken: rawRefresh });
+}
+
+export async function getProfile(req: AuthRequest, res: Response): Promise<void> {
+  const userId = req.auth?.sub;
+  if (!userId) {
+    res.status(401).json({ error: "Authentication required." });
+    return;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      avatar: true,
+      bio: true,
+      location: true,
+      languages: true,
+      settings: true,
+      mentorProfile: {
+        select: { tagline: true, maxSeekers: true, isAvailable: true },
+      },
+    },
+  });
+
+  if (!user) {
+    res.status(404).json({ error: "User not found." });
+    return;
+  }
+
+  res.json({ user: safeUser(user) });
+}
+
+export async function updateProfile(req: AuthRequest, res: Response): Promise<void> {
+  const userId = req.auth?.sub;
+  if (!userId) {
+    res.status(401).json({ error: "Authentication required." });
+    return;
+  }
+
+  const parsed = profileUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    return;
+  }
+
+  const payload = parsed.data;
+  const existing = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      role: true,
+      settings: true,
+      mentorProfile: {
+        select: { isAvailable: true, maxSeekers: true, tagline: true },
+      },
+    },
+  });
+
+  if (!existing) {
+    res.status(404).json({ error: "User not found." });
+    return;
+  }
+
+  const currentSettings =
+    existing.settings && typeof existing.settings === "object"
+      ? (existing.settings as Record<string, unknown>)
+      : {};
+  const mergedSettings: Record<string, unknown> = {
+    ...currentSettings,
+    ...(payload.settings ?? {}),
+  };
+
+  if (
+    payload.settings?.general &&
+    typeof currentSettings.general === "object" &&
+    currentSettings.general
+  ) {
+    mergedSettings.general = {
+      ...(currentSettings.general as Record<string, unknown>),
+      ...payload.settings.general,
+    };
+  }
+
+  if (
+    payload.settings?.seeker &&
+    typeof currentSettings.seeker === "object" &&
+    currentSettings.seeker
+  ) {
+    mergedSettings.seeker = {
+      ...(currentSettings.seeker as Record<string, unknown>),
+      ...payload.settings.seeker,
+    };
+  }
+
+  if (
+    payload.settings?.mentor &&
+    typeof currentSettings.mentor === "object" &&
+    currentSettings.mentor
+  ) {
+    mergedSettings.mentor = {
+      ...(currentSettings.mentor as Record<string, unknown>),
+      ...payload.settings.mentor,
+    };
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      name: payload.name,
+      avatar: payload.avatar,
+      bio: payload.bio,
+      location: payload.location,
+      languages: payload.languages,
+      settings: mergedSettings as Prisma.InputJsonValue,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      avatar: true,
+      bio: true,
+      location: true,
+      languages: true,
+      settings: true,
+      mentorProfile: {
+        select: { tagline: true, maxSeekers: true, isAvailable: true },
+      },
+    },
+  });
+
+  if (existing.role === "MENTOR" && payload.settings?.mentor) {
+    const mentorData = {
+      isAvailable:
+        payload.settings.mentor.availableForNewSeekers ??
+        existing.mentorProfile?.isAvailable ??
+        true,
+      maxSeekers:
+        payload.settings.mentor.maxActiveSeekers ??
+        existing.mentorProfile?.maxSeekers ??
+        8,
+      tagline:
+        payload.settings.mentor.mentoringFocus ??
+        existing.mentorProfile?.tagline ??
+        "Mentor support",
+    };
+
+    await prisma.mentorProfile.upsert({
+      where: { userId },
+      update: mentorData,
+      create: {
+        userId,
+        ...mentorData,
+      },
+    });
+  }
+
+  const finalUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      avatar: true,
+      bio: true,
+      location: true,
+      languages: true,
+      settings: true,
+      mentorProfile: {
+        select: { tagline: true, maxSeekers: true, isAvailable: true },
+      },
+    },
+  });
+
+  res.json({ user: safeUser(finalUser ?? updated) });
+}
+
+export async function deleteProfile(req: AuthRequest, res: Response): Promise<void> {
+  const userId = req.auth?.sub;
+  if (!userId) {
+    res.status(401).json({ error: "Authentication required." });
+    return;
+  }
+
+  const existing = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, deletedAt: true },
+  });
+
+  if (!existing) {
+    res.status(404).json({ error: "User not found." });
+    return;
+  }
+
+  if (existing.deletedAt) {
+    res.json({ ok: true });
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.refreshToken.deleteMany({
+      where: { userId },
+    });
+
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
+  });
+
+  res.json({ ok: true });
 }
 
 export async function refreshToken(req: Request, res: Response): Promise<void> {
@@ -145,7 +561,26 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true, deletedAt: true, isBanned: true },
+  });
+
+  if (!user) {
+    res.status(401).json({ error: "Account not found." });
+    return;
+  }
+
+  if (user.deletedAt) {
+    res.status(410).json({ error: "Account deactivated." });
+    return;
+  }
+
+  if (user.isBanned) {
+    res.status(403).json({ error: "Account suspended." });
+    return;
+  }
+
   const newAccess = issueAccessToken(user.id, user.role);
   const newRaw = issueRefreshToken(user.id);
   const newHash = await bcrypt.hash(newRaw, 10);
