@@ -11,6 +11,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { clsx } from "clsx";
+import { API_BASE } from "@/lib/constants";
+import { useAuthStore } from "@/store/useAuthStore";
 
 interface ConversationSummary {
   id: string;
@@ -62,6 +64,7 @@ export function PostConversationModal({
   onClose,
   userName,
 }: PostConversationModalProps) {
+  const token = useAuthStore((state) => state.token);
   const [activeTab, setActiveTab] = useState<
     "summary" | "actions" | "reflection" | "progress"
   >("summary");
@@ -73,6 +76,7 @@ export function PostConversationModal({
   );
   const [progressSnapshot, setProgressSnapshot] =
     useState<ProgressSnapshot | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [reflectionResponses, setReflectionResponses] = useState<
     Record<string, string>
   >({});
@@ -84,14 +88,41 @@ export function PostConversationModal({
   }, [isOpen, conversationId]);
 
   const loadPostConversationData = async () => {
+    if (!token || !conversationId) {
+      setAuthError("Session expired. Please sign in again to load post-conversation insights.");
+      setLoading(false);
+      return;
+    }
+
+    setAuthError(null);
     setLoading(true);
     try {
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+
+      await fetch(`${API_BASE}/api/post-conversation/end-conversation`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ conversationId }),
+      });
+
       const [summaryRes, actionPlanRes, reflectionRes, progressRes] =
         await Promise.all([
-          fetch(`/api/post-conversation/${conversationId}/summary`),
-          fetch(`/api/post-conversation/${conversationId}/action-plan`),
-          fetch(`/api/post-conversation/${conversationId}/reflection-prompts`),
-          fetch(`/api/post-conversation/${conversationId}/progress-snapshot`),
+          fetch(`${API_BASE}/api/post-conversation/${conversationId}/summary`, {
+            headers,
+          }),
+          fetch(`${API_BASE}/api/post-conversation/${conversationId}/action-plan`, {
+            headers,
+          }),
+          fetch(
+            `${API_BASE}/api/post-conversation/${conversationId}/reflection-prompts`,
+            { headers }
+          ),
+          fetch(`${API_BASE}/api/post-conversation/${conversationId}/progress-snapshot`, {
+            headers,
+          }),
         ]);
 
       if (summaryRes.ok)
@@ -102,6 +133,16 @@ export function PostConversationModal({
         setReflectionPrompts(await reflectionRes.json());
       if (progressRes.ok)
         setProgressSnapshot(await progressRes.json());
+
+      const unauthorizedResponses = [
+        summaryRes,
+        actionPlanRes,
+        reflectionRes,
+        progressRes,
+      ].some((res) => res.status === 401);
+      if (unauthorizedResponses) {
+        setAuthError("Session expired. Please sign in again to continue.");
+      }
     } catch (error) {
       console.error("Error loading post-conversation data:", error);
     } finally {
@@ -114,14 +155,27 @@ export function PostConversationModal({
     newStatus: string
   ) => {
     try {
+      if (!token) {
+        setAuthError("Session expired. Please sign in again to update action items.");
+        return;
+      }
+
       const response = await fetch(
-        `/api/post-conversation/${conversationId}/action-item/${actionItemId}/status`,
+        `${API_BASE}/api/post-conversation/${conversationId}/action-item/${actionItemId}/status`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({ status: newStatus }),
         }
       );
+
+      if (response.status === 401) {
+        setAuthError("Session expired. Please sign in again to continue.");
+        return;
+      }
 
       if (response.ok) {
         const updated = await response.json();
@@ -139,14 +193,27 @@ export function PostConversationModal({
     if (!response?.trim()) return;
 
     try {
+      if (!token) {
+        setAuthError("Session expired. Please sign in again to submit reflection.");
+        return;
+      }
+
       const res = await fetch(
-        `/api/post-conversation/${conversationId}/reflection-response`,
+        `${API_BASE}/api/post-conversation/${conversationId}/reflection-response`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({ promptId, response }),
         }
       );
+
+      if (res.status === 401) {
+        setAuthError("Session expired. Please sign in again to continue.");
+        return;
+      }
 
       if (res.ok) {
         const updated = await res.json();
@@ -219,6 +286,12 @@ export function PostConversationModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
+          {authError && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {authError}
+            </div>
+          )}
+
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="text-center">

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useAuthStore } from "@/store/useAuthStore";
 import { AlertCircle, Sparkles, X } from "lucide-react";
 import { EmpathyDrafting } from "./EmpathyDrafting";
 import { FollowUpQuestions } from "./FollowUpQuestions";
@@ -30,6 +31,9 @@ export const MentorCopilotPanel: React.FC<MentorCopilotPanelProps> = ({
   onClose,
 }) => {
   const [draftMessage, setDraftMessage] = useState("");
+  const user = useAuthStore((state) => state.user);
+  const tier = user?.subscriptionTier || "FREE";
+  const hasCopilot = tier === "PREMIUM" || tier === "PRO";
 
   if (!isOpen) {
     return (
@@ -40,6 +44,19 @@ export const MentorCopilotPanel: React.FC<MentorCopilotPanelProps> = ({
       >
         <Sparkles className="h-6 w-6" />
       </button>
+    );
+  }
+
+  if (!hasCopilot) {
+    return (
+      <div className="fixed right-0 top-0 bottom-0 w-full sm:w-96 bg-white shadow-lg overflow-y-auto z-40 flex flex-col items-center justify-center">
+        <div className="p-8 text-center">
+          <Sparkles className="h-10 w-10 text-purple-400 mx-auto mb-4" />
+          <h2 className="font-semibold text-stone-900 mb-2">Mentor Copilot is a Premium Feature</h2>
+          <p className="text-stone-600 mb-4">Upgrade to Premium to unlock AI-powered empathy drafting, follow-up suggestions, and more.</p>
+          <button className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 rounded shadow hover:shadow-lg transition">Upgrade Now</button>
+        </div>
+      </div>
     );
   }
 

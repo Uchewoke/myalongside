@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
+import { useAuthStore } from "@/store/useAuthStore";
 import { Sparkles, Loader2, ExternalLink, ChevronDown, ChevronUp, BookOpen } from "lucide-react";
 import clsx from "clsx";
 
@@ -41,6 +42,15 @@ export const ResourceRecommendations: React.FC<ResourceRecommendationsProps> = (
   discussionTopics,
   seekerChallenges,
 }) => {
+  const user = useAuthStore((state) => state.user);
+  const tier = user?.subscriptionTier || "FREE";
+  if (tier === "FREE") {
+    return (
+      <div className="rounded-lg border border-purple-200 bg-purple-50 p-4 text-center">
+        <p className="text-purple-700 font-medium">Resource Recommendations are a Premium feature. <span className="underline cursor-pointer text-purple-900">Upgrade to unlock</span>.</p>
+      </div>
+    );
+  }
   const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

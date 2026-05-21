@@ -14,6 +14,8 @@ interface AuthUser {
   languages?: string[];
   lifeEvents?: string[];
   settings?: PublicProfileSettings;
+  subscriptionTier?: "FREE" | "PREMIUM" | "PRO";
+  stripeCustomerId?: string | null;
 }
 
 interface AuthState {

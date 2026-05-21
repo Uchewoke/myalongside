@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
+import { useAuthStore } from "@/store/useAuthStore";
 import { Sparkles, Loader2, Copy, Check, ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
 import clsx from "clsx";
 
@@ -20,6 +21,15 @@ export const FollowUpQuestions: React.FC<FollowUpQuestionsProps> = ({
   seekerMessage,
   onSelect,
 }) => {
+  const user = useAuthStore((state) => state.user);
+  const tier = user?.subscriptionTier || "FREE";
+  if (tier === "FREE") {
+    return (
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-center">
+        <p className="text-blue-700 font-medium">Follow-up Questions are a Premium feature. <span className="underline cursor-pointer text-blue-900">Upgrade to unlock</span>.</p>
+      </div>
+    );
+  }
   const [questions, setQuestions] = useState<FollowUpQuestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

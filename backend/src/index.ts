@@ -12,6 +12,9 @@ import messageRoutes from "./routes/message.routes";
 import aiRoutes from "./routes/ai.routes";
 import postConversationRoutes from "./routes/post-conversation.routes";
 import adminRoutes from "./routes/admin.routes";
+import stripeRoutes from "./routes/stripe.routes";
+import stripePortalRoutes from "./routes/stripe.portal.routes";
+import { handleStripeWebhook } from "./controllers/stripe.controller";
 
 // Load env from backend/.env first, then fallback to root/.env for monorepo runs.
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
@@ -48,6 +51,13 @@ const authLimiter = rateLimit({
   message: { error: "Too many auth attempts, please try again later." },
 });
 
+// Stripe webhook endpoint must read the raw request body.
+app.post(
+  "/api/stripe/webhook",
+  express.raw({ type: "application/json" }),
+  handleStripeWebhook
+);
+
 // ── Body parsing ──
 app.use(express.json({ limit: "64kb" }));
 
@@ -62,8 +72,11 @@ app.use("/api/mentors", mentorRoutes);
 app.use("/api/matches", matchRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/ai", aiRoutes);
+
 app.use("/api/post-conversation", postConversationRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/stripe", stripeRoutes);
+app.use("/api/stripe-portal", stripePortalRoutes);
 
 // ── 404 ──
 app.use((_req, res) => {

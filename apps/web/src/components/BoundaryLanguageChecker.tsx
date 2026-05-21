@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
+import { useAuthStore } from "@/store/useAuthStore";
 import { Shield, Loader2, AlertCircle, CheckCircle, ChevronDown, ChevronUp } from "lucide-react";
 import clsx from "clsx";
 
@@ -28,6 +29,15 @@ export const BoundaryLanguageChecker: React.FC<BoundaryLanguageCheckerProps> = (
   draftMessage,
   onUpdate,
 }) => {
+  const user = useAuthStore((state) => state.user);
+  const tier = user?.subscriptionTier || "FREE";
+  if (tier === "FREE") {
+    return (
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center">
+        <p className="text-emerald-700 font-medium">Boundary Language Checker is a Premium feature. <span className="underline cursor-pointer text-emerald-900">Upgrade to unlock</span>.</p>
+      </div>
+    );
+  }
   const [result, setResult] = useState<BoundaryCheckResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

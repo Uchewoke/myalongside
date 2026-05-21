@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
+import { useAuthStore } from "@/store/useAuthStore";
 import { Sparkles, Loader2, Copy, Check, ChevronDown, ChevronUp, Heart } from "lucide-react";
 import clsx from "clsx";
 
@@ -21,6 +22,15 @@ export const EmpathyDrafting: React.FC<EmpathyDraftingProps> = ({
   seekerMessage,
   onSelect,
 }) => {
+  const user = useAuthStore((state) => state.user);
+  const tier = user?.subscriptionTier || "FREE";
+  if (tier === "FREE") {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-center">
+        <p className="text-amber-700 font-medium">Empathy Drafting is a Premium feature. <span className="underline cursor-pointer text-amber-900">Upgrade to unlock</span>.</p>
+      </div>
+    );
+  }
   const [drafts, setDrafts] = useState<EmpathyDraft[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

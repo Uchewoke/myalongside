@@ -64,6 +64,35 @@ const profileUpdateSchema = z.object({
     .optional(),
 });
 
+export function hasFeature(user: { subscriptionTier?: string | null }, feature: string): boolean {
+  const tierFeatures: Record<string, string[]> = {
+    FREE: ["basic-chat", "basic-matching"],
+    PREMIUM: [
+      "basic-chat",
+      "basic-matching",
+      "mentor-copilot",
+      "follow-up-questions",
+      "empathy-drafting",
+      "boundary-checker",
+      "resource-recommendations",
+    ],
+    PRO: [
+      "basic-chat",
+      "basic-matching",
+      "mentor-copilot",
+      "follow-up-questions",
+      "empathy-drafting",
+      "boundary-checker",
+      "resource-recommendations",
+      "priority-matching",
+      "api-access",
+    ],
+  };
+
+  const tier = (user.subscriptionTier ?? "FREE").toUpperCase();
+  return (tierFeatures[tier] ?? tierFeatures.FREE).includes(feature);
+}
+
 function safeUser(user: {
   id: string;
   name: string;
@@ -74,6 +103,8 @@ function safeUser(user: {
   location: string | null;
   languages: string[];
   settings: unknown;
+  subscriptionTier: string;
+  stripeCustomerId: string | null;
   mentorProfile?: {
     tagline: string;
     maxSeekers: number;
@@ -84,14 +115,17 @@ function safeUser(user: {
     user.settings && typeof user.settings === "object"
       ? (user.settings as Record<string, unknown>)
       : {};
+
   const seeker =
     currentSettings.seeker && typeof currentSettings.seeker === "object"
       ? (currentSettings.seeker as Record<string, unknown>)
       : {};
+
   const mentor =
     currentSettings.mentor && typeof currentSettings.mentor === "object"
       ? (currentSettings.mentor as Record<string, unknown>)
       : {};
+
   const general =
     currentSettings.general && typeof currentSettings.general === "object"
       ? (currentSettings.general as Record<string, unknown>)
@@ -106,12 +140,15 @@ function safeUser(user: {
     bio: user.bio,
     location: user.location,
     languages: user.languages,
+    subscriptionTier: user.subscriptionTier,
+    stripeCustomerId: user.stripeCustomerId,
     settings: {
       general: {
         anonymousMode:
           typeof general.anonymousMode === "boolean" ? general.anonymousMode : false,
         displayNameMode:
-          general.displayNameMode === "first-name-only" || general.displayNameMode === "anonymous"
+          general.displayNameMode === "first-name-only" ||
+          general.displayNameMode === "anonymous"
             ? general.displayNameMode
             : "full-name",
         allowCommunityProfile:
@@ -174,9 +211,7 @@ function safeUser(user: {
             ? mentor.showResponseTemplates
             : true,
         weeklyInsights:
-          typeof mentor.weeklyInsights === "boolean"
-            ? mentor.weeklyInsights
-            : true,
+          typeof mentor.weeklyInsights === "boolean" ? mentor.weeklyInsights : true,
       },
     },
   };
@@ -231,6 +266,8 @@ export async function signup(req: Request, res: Response): Promise<void> {
       location: true,
       languages: true,
       settings: true,
+      subscriptionTier: true,
+      stripeCustomerId: true,
       mentorProfile: {
         select: { tagline: true, maxSeekers: true, isAvailable: true },
       },
@@ -273,6 +310,8 @@ export async function login(req: Request, res: Response): Promise<void> {
       location: true,
       languages: true,
       settings: true,
+      subscriptionTier: true,
+      stripeCustomerId: true,
       isBanned: true,
       deletedAt: true,
       mentorProfile: {
@@ -331,6 +370,8 @@ export async function getProfile(req: AuthRequest, res: Response): Promise<void>
       location: true,
       languages: true,
       settings: true,
+      subscriptionTier: true,
+      stripeCustomerId: true,
       mentorProfile: {
         select: { tagline: true, maxSeekers: true, isAvailable: true },
       },
@@ -379,38 +420,27 @@ export async function updateProfile(req: AuthRequest, res: Response): Promise<vo
     existing.settings && typeof existing.settings === "object"
       ? (existing.settings as Record<string, unknown>)
       : {};
+
   const mergedSettings: Record<string, unknown> = {
     ...currentSettings,
     ...(payload.settings ?? {}),
   };
 
-  if (
-    payload.settings?.general &&
-    typeof currentSettings.general === "object" &&
-    currentSettings.general
-  ) {
+  if (payload.settings?.general && typeof currentSettings.general === "object" && currentSettings.general) {
     mergedSettings.general = {
       ...(currentSettings.general as Record<string, unknown>),
       ...payload.settings.general,
     };
   }
 
-  if (
-    payload.settings?.seeker &&
-    typeof currentSettings.seeker === "object" &&
-    currentSettings.seeker
-  ) {
+  if (payload.settings?.seeker && typeof currentSettings.seeker === "object" && currentSettings.seeker) {
     mergedSettings.seeker = {
       ...(currentSettings.seeker as Record<string, unknown>),
       ...payload.settings.seeker,
     };
   }
 
-  if (
-    payload.settings?.mentor &&
-    typeof currentSettings.mentor === "object" &&
-    currentSettings.mentor
-  ) {
+  if (payload.settings?.mentor && typeof currentSettings.mentor === "object" && currentSettings.mentor) {
     mergedSettings.mentor = {
       ...(currentSettings.mentor as Record<string, unknown>),
       ...payload.settings.mentor,
@@ -437,6 +467,8 @@ export async function updateProfile(req: AuthRequest, res: Response): Promise<vo
       location: true,
       languages: true,
       settings: true,
+      subscriptionTier: true,
+      stripeCustomerId: true,
       mentorProfile: {
         select: { tagline: true, maxSeekers: true, isAvailable: true },
       },
@@ -446,17 +478,11 @@ export async function updateProfile(req: AuthRequest, res: Response): Promise<vo
   if (existing.role === "MENTOR" && payload.settings?.mentor) {
     const mentorData = {
       isAvailable:
-        payload.settings.mentor.availableForNewSeekers ??
-        existing.mentorProfile?.isAvailable ??
-        true,
+        payload.settings.mentor.availableForNewSeekers ?? existing.mentorProfile?.isAvailable ?? true,
       maxSeekers:
-        payload.settings.mentor.maxActiveSeekers ??
-        existing.mentorProfile?.maxSeekers ??
-        8,
+        payload.settings.mentor.maxActiveSeekers ?? existing.mentorProfile?.maxSeekers ?? 8,
       tagline:
-        payload.settings.mentor.mentoringFocus ??
-        existing.mentorProfile?.tagline ??
-        "Mentor support",
+        payload.settings.mentor.mentoringFocus ?? existing.mentorProfile?.tagline ?? "Mentor support",
     };
 
     await prisma.mentorProfile.upsert({
@@ -481,6 +507,8 @@ export async function updateProfile(req: AuthRequest, res: Response): Promise<vo
       location: true,
       languages: true,
       settings: true,
+      subscriptionTier: true,
+      stripeCustomerId: true,
       mentorProfile: {
         select: { tagline: true, maxSeekers: true, isAvailable: true },
       },
@@ -513,9 +541,7 @@ export async function deleteProfile(req: AuthRequest, res: Response): Promise<vo
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.refreshToken.deleteMany({
-      where: { userId },
-    });
+    await tx.refreshToken.deleteMany({ where: { userId } });
 
     await tx.user.update({
       where: { id: userId },
@@ -612,8 +638,9 @@ export async function logout(req: Request, res: Response): Promise<void> {
         }
       }
     } catch {
-      /* silently ignore invalid token on logout */
+      // Silently ignore invalid token on logout.
     }
   }
+
   res.json({ ok: true });
 }
