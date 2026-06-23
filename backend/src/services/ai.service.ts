@@ -1,4 +1,5 @@
 import { OpenAI } from "openai";
+import { sanitizeOutputUrl } from "../lib/ssrf-guard";
 
 type SafetyMode = "conversation" | "report" | "mentor";
 type SafetySeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
@@ -1106,7 +1107,7 @@ Return a single JSON object matching the requested schema.`;
               description: this.asNonEmptyString(item?.description, "Description"),
               relevance:
                 item?.relevance === "MEDIUM" ? "MEDIUM" : "HIGH",
-              url: typeof item?.url === "string" ? item.url : undefined,
+              url: sanitizeOutputUrl(typeof item?.url === "string" ? item.url : undefined),
             })),
         };
       }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   X,
   ChevronDown,
@@ -81,13 +81,7 @@ export function PostConversationModal({
     Record<string, string>
   >({});
 
-  useEffect(() => {
-    if (isOpen && conversationId) {
-      loadPostConversationData();
-    }
-  }, [isOpen, conversationId]);
-
-  const loadPostConversationData = async () => {
+  const loadPostConversationData = useCallback(async () => {
     if (!token || !conversationId) {
       setAuthError("Session expired. Please sign in again to load post-conversation insights.");
       setLoading(false);
@@ -148,7 +142,13 @@ export function PostConversationModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [token, conversationId]);
+
+  useEffect(() => {
+    if (isOpen && conversationId) {
+      loadPostConversationData();
+    }
+  }, [isOpen, conversationId, loadPostConversationData]);
 
   const handleUpdateActionItem = async (
     actionItemId: string,

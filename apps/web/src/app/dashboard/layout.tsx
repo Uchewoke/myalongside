@@ -46,6 +46,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 width={36}
                 height={36}
                 className="rounded-full bg-stone-100"
+                unoptimized
               />
               <div className="hidden sm:block">
                 <p className="text-sm font-semibold text-stone-800 leading-tight">{publicUser.displayName}</p>

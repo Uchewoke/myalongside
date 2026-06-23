@@ -164,9 +164,9 @@ export async function rankedMentorSearch(req: AuthRequest, res: Response): Promi
     seeker: {
       bio: seeker.bio,
       languages: seeker.languages,
-      lifeEvents: seeker.userLifeEvents.map((entry) => entry.lifeEvent.slug),
+      lifeEvents: seeker.userLifeEvents.map((entry: any) => entry.lifeEvent.slug),
     },
-    mentors: mentors.map((mentor) => ({
+    mentors: mentors.map((mentor: any) => ({
       id: mentor.id,
       name: mentor.name,
       avatar: mentor.avatar,
@@ -179,7 +179,7 @@ export async function rankedMentorSearch(req: AuthRequest, res: Response): Promi
       reviewCount: mentor.mentorProfile?.reviewCount,
       yearsExperience: mentor.mentorProfile?.yearsExperience,
       isAvailable: mentor.mentorProfile?.isAvailable ?? false,
-      lifeEvents: mentor.userLifeEvents.map((entry) => ({
+      lifeEvents: mentor.userLifeEvents.map((entry: any) => ({
         slug: entry.lifeEvent.slug,
         label: entry.lifeEvent.label,
         status: entry.status,

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { AdminShell } from "@/components/AdminShell";
+import { getAdminSession } from "@/lib/admin-auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -6,10 +8,18 @@ export const metadata: Metadata = {
   description: "Admin dashboard for MyAlongside platform",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const session = await getAdminSession();
+
   return (
     <html lang="en">
-      <body className="bg-gray-50 text-gray-900 antialiased">{children}</body>
+      <body className="text-gray-900 antialiased">
+        {session?.user.role === "ADMIN" ? (
+          <AdminShell user={session.user}>{children}</AdminShell>
+        ) : (
+          children
+        )}
+      </body>
     </html>
   );
 }

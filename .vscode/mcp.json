@@ -1,0 +1,13 @@
+{
+  "servers": {
+    "myalongside": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/mcp-server/dist/index.js"],
+      "env": {
+        "MYALONGSIDE_API_URL": "http://localhost:4000",
+        "MYALONGSIDE_AUTH_TOKEN": ""
+      }
+    }
+  }
+}

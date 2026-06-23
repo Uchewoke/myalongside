@@ -147,6 +147,7 @@ export default function Sidebar() {
               width={36}
               height={36}
               className="rounded-full bg-stone-200"
+              unoptimized
             />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-stone-800">{publicUser.displayName}</p>

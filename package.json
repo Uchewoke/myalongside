@@ -4,7 +4,8 @@
   "private": true,
   "workspaces": [
     "apps/*",
-    "backend"
+    "backend",
+    "mcp-server"
   ],
   "scripts": {
     "dev": "npm run dev:web",
@@ -29,10 +30,15 @@
     "neon:use:local": "node scripts/neon-switch.js local",
     "neon:use:staging": "node scripts/neon-switch.js staging",
     "neon:use:prod": "node scripts/neon-switch.js prod",
-    "neon:sync:prod-env": "node scripts/neon-sync-prod-env.js"
+    "neon:sync:prod-env": "node scripts/neon-sync-prod-env.js",
+    "mcp:build": "npm run build --workspace=mcp-server",
+    "mcp:start": "npm run start --workspace=mcp-server"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.0",
     "typescript": "^5.4.5"
+  },
+  "overrides": {
+    "postcss": "8.5.10"
   }
 }

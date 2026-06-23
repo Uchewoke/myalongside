@@ -23,19 +23,12 @@ export const EmpathyDrafting: React.FC<EmpathyDraftingProps> = ({
   onSelect,
 }) => {
   const user = useAuthStore((state) => state.user);
-  const tier = user?.subscriptionTier || "FREE";
-  if (tier === "FREE") {
-    return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-center">
-        <p className="text-amber-700 font-medium">Empathy Drafting is a Premium feature. <span className="underline cursor-pointer text-amber-900">Upgrade to unlock</span>.</p>
-      </div>
-    );
-  }
   const [drafts, setDrafts] = useState<EmpathyDraft[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const tier = user?.subscriptionTier || "FREE";
 
   const generateDrafts = useCallback(async () => {
     setLoading(true);
@@ -62,6 +55,14 @@ export const EmpathyDrafting: React.FC<EmpathyDraftingProps> = ({
       setLoading(false);
     }
   }, [conversationId, seekerMessage]);
+
+  if (tier === "FREE") {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-center">
+        <p className="text-amber-700 font-medium">Empathy Drafting is a Plus feature. <span className="underline cursor-pointer text-amber-900">Upgrade to unlock</span>.</p>
+      </div>
+    );
+  }
 
   const handleCopy = (text: string, index: number) => {
     navigator.clipboard.writeText(text);

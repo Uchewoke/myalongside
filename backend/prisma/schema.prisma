@@ -16,7 +16,7 @@ datasource db {
 
 enum SubscriptionTier {
   FREE
-  PREMIUM
+  PLUS
   PRO
 }
 
@@ -225,8 +225,45 @@ model RefreshToken {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   tokenHash String   @unique
+  family    String   @default(cuid()) // token-rotation family for reuse detection
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  @@index([family])
+}
+
+// ──────────────────────────────────────────────
+// Security / Compliance Models
+// ──────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?  // plain string — logs survive user deletion
+  action     String
+  resource   String?
+  resourceId String?
+  metadata   Json     @default("{}")
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model IdempotencyKey {
+  id         String   @id @default(cuid())
+  key        String   @unique // "{userId}:{endpoint}:{clientKey}"
+  userId     String
+  endpoint   String
+  response   Json
+  statusCode Int
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model AiSuggestion {

@@ -102,7 +102,7 @@ export async function generateIntroSuggestion(
     const suggestions = await aiService.generateIntroSuggestion({
       seekerName: seeker.name,
       seekerBio: seeker.bio || undefined,
-      seekerEvents: seeker.userLifeEvents.map((e) => e.lifeEvent.label),
+      seekerEvents: seeker.userLifeEvents.map((e: any) => e.lifeEvent.label),
       mentorName: mentor.name,
       mentorTagline: mentor.mentorProfile.tagline,
       mentorYearsExperience: mentor.mentorProfile.yearsExperience,
@@ -190,7 +190,7 @@ export async function generateResponseSuggestion(
     // Build conversation history
     const conversationHistory = conversation.messages
       .map(
-        (msg) =>
+        (msg: any) =>
           `${msg.senderId === seeker.id ? "Seeker" : "Mentor"}: ${msg.content}`
       )
       .slice(-5); // Last 5 messages for context
@@ -199,7 +199,7 @@ export async function generateResponseSuggestion(
     const suggestions = await aiService.generateResponseSuggestion({
       seekerName: seeker.name,
       seekerBio: seeker.bio || undefined,
-      seekerEvents: seeker.userLifeEvents.map((e) => e.lifeEvent.label),
+      seekerEvents: seeker.userLifeEvents.map((e: any) => e.lifeEvent.label),
       mentorName: mentor.name,
       mentorTagline: mentor.mentorProfile.tagline,
       mentorYearsExperience: mentor.mentorProfile.yearsExperience,
@@ -287,6 +287,7 @@ export async function acceptSuggestion(
   res: Response
 ): Promise<void> {
   try {
+    const userId = req.auth!.sub;
     const suggestionId = Array.isArray(req.params.suggestionId)
       ? req.params.suggestionId[0]
       : req.params.suggestionId;
@@ -298,10 +299,28 @@ export async function acceptSuggestion(
 
     const suggestion = await prisma.aiSuggestion.findUnique({
       where: { id: suggestionId },
+      include: {
+        conversation: {
+          include: {
+            match: {
+              select: {
+                seekerId: true,
+                mentorId: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!suggestion) {
       res.status(404).json({ error: "Suggestion not found" });
+      return;
+    }
+
+    const { seekerId, mentorId } = suggestion.conversation.match;
+    if (userId !== seekerId && userId !== mentorId) {
+      res.status(403).json({ error: "Not authorized to access this suggestion" });
       return;
     }
 
@@ -390,14 +409,14 @@ export async function generateEmpathyDrafting(
     }
 
     const conversationHistory = conversation.messages
-      .map((msg) => `${msg.senderId === seeker.id ? "Seeker" : "Mentor"}: ${msg.content}`)
+      .map((msg: any) => `${msg.senderId === seeker.id ? "Seeker" : "Mentor"}: ${msg.content}`)
       .slice(-5);
 
     // Generate empathy drafts
     const result = await aiService.generateEmpathyDrafting({
       seekerName: seeker.name,
       seekerBio: seeker.bio || undefined,
-      seekerEvents: seeker.userLifeEvents.map((e) => e.lifeEvent.label),
+      seekerEvents: seeker.userLifeEvents.map((e: any) => e.lifeEvent.label),
       mentorName: mentor.name,
       mentorTagline: mentor.mentorProfile.tagline,
       mentorYearsExperience: mentor.mentorProfile.yearsExperience,
@@ -486,7 +505,7 @@ export async function generateFollowUpQuestions(
     const result = await aiService.generateFollowUpQuestions({
       seekerName: seeker.name,
       seekerBio: seeker.bio || undefined,
-      seekerEvents: seeker.userLifeEvents.map((e) => e.lifeEvent.label),
+      seekerEvents: seeker.userLifeEvents.map((e: any) => e.lifeEvent.label),
       mentorName: mentor.name,
       mentorTagline: mentor.mentorProfile.tagline,
       mentorYearsExperience: mentor.mentorProfile.yearsExperience,

@@ -1,11 +1,14 @@
-import type { NextConfig } from "next";
-import path from "path";
+const path = require("path");
 
-const nextConfig: NextConfig = {
-  outputFileTracingRoot: path.resolve(process.cwd(), "../.."),
-  eslint: {
-    ignoreDuringBuilds: true,
+/**
+ * @type {import('next').NextConfig}
+ */
+const nextConfig = {
+  turbopack: {
+    root: path.resolve(__dirname, "../.."),
   },
+  // Keep tracing scoped to this monorepo root.
+  outputFileTracingRoot: path.resolve(process.cwd(), "../.."),
   images: {
     remotePatterns: [
       {
@@ -38,4 +41,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;

@@ -1,15 +1,25 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { randomUUID } from "crypto";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../middleware/auth.middleware";
+import { writeAuditLog, reqMeta } from "../lib/audit";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "change-this-secret-in-production";
-const REFRESH_SECRET = process.env.REFRESH_SECRET ?? "change-this-refresh-secret";
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} must be set.`);
+  return value;
+}
+
+const JWT_SECRET = requireEnv("JWT_SECRET");
+const REFRESH_SECRET = requireEnv("JWT_REFRESH_SECRET");
 const ACCESS_EXPIRY = "15m";
 const REFRESH_EXPIRY = "7d";
+const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+// ── Validation schemas ─────────────────────────────────────────────────────────
 
 const signupSchema = z.object({
   name: z.string().min(1).max(100),
@@ -51,7 +61,7 @@ const generalSettingsSchema = z.object({
 
 const profileUpdateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  avatar: z.string().max(500).optional(),
+  avatar: z.string().url().max(500).optional().or(z.literal("")),
   bio: z.string().max(1500).optional(),
   location: z.string().max(120).optional(),
   languages: z.array(z.string().min(1).max(40)).max(10).optional(),
@@ -64,27 +74,41 @@ const profileUpdateSchema = z.object({
     .optional(),
 });
 
+// ── Feature gating ────────────────────────────────────────────────────────────
+
 export function hasFeature(user: { subscriptionTier?: string | null }, feature: string): boolean {
   const tierFeatures: Record<string, string[]> = {
-    FREE: ["basic-chat", "basic-matching"],
-    PREMIUM: [
+    FREE: ["basic-chat", "basic-matching", "basic-journey-tracking"],
+    PLUS: [
       "basic-chat",
       "basic-matching",
+      "basic-journey-tracking",
+      "all-communities",
+      "unlimited-connections",
+      "priority-matching",
       "mentor-copilot",
       "follow-up-questions",
       "empathy-drafting",
       "boundary-checker",
       "resource-recommendations",
+      "advanced-analytics",
     ],
     PRO: [
       "basic-chat",
       "basic-matching",
+      "basic-journey-tracking",
+      "all-communities",
+      "unlimited-connections",
+      "priority-matching",
       "mentor-copilot",
       "follow-up-questions",
       "empathy-drafting",
       "boundary-checker",
       "resource-recommendations",
-      "priority-matching",
+      "advanced-analytics",
+      "host-live-sessions",
+      "verified-mentor-badge",
+      "custom-communities",
       "api-access",
     ],
   };
@@ -92,6 +116,8 @@ export function hasFeature(user: { subscriptionTier?: string | null }, feature: 
   const tier = (user.subscriptionTier ?? "FREE").toUpperCase();
   return (tierFeatures[tier] ?? tierFeatures.FREE).includes(feature);
 }
+
+// ── Safe user projection ──────────────────────────────────────────────────────
 
 function safeUser(user: {
   id: string;
@@ -217,13 +243,53 @@ function safeUser(user: {
   };
 }
 
-function issueAccessToken(userId: string, role: string) {
-  return jwt.sign({ sub: userId, role }, JWT_SECRET, { expiresIn: ACCESS_EXPIRY });
+// ── Token helpers ─────────────────────────────────────────────────────────────
+
+function issueAccessToken(userId: string, role: string): string {
+  const jti = randomUUID();
+  return jwt.sign({ sub: userId, role, jti }, JWT_SECRET, { expiresIn: ACCESS_EXPIRY });
 }
 
-function issueRefreshToken(userId: string) {
-  return jwt.sign({ sub: userId }, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRY });
+function issueRefreshToken(userId: string, family: string): string {
+  return jwt.sign({ sub: userId, fam: family }, REFRESH_SECRET, {
+    expiresIn: REFRESH_EXPIRY,
+  });
 }
+
+async function storeRefreshToken(
+  userId: string,
+  rawToken: string,
+  family: string
+): Promise<void> {
+  const tokenHash = await bcrypt.hash(rawToken, 10);
+  await prisma.refreshToken.create({
+    data: {
+      userId,
+      tokenHash,
+      family,
+      expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
+    },
+  });
+}
+
+const USER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  avatar: true,
+  bio: true,
+  location: true,
+  languages: true,
+  settings: true,
+  subscriptionTier: true,
+  stripeCustomerId: true,
+  mentorProfile: {
+    select: { tagline: true, maxSeekers: true, isAvailable: true },
+  },
+} as const;
+
+// ── Controllers ───────────────────────────────────────────────────────────────
 
 export async function signup(req: Request, res: Response): Promise<void> {
   const parsed = signupSchema.safeParse(req.body);
@@ -250,40 +316,24 @@ export async function signup(req: Request, res: Response): Promise<void> {
       languages: [],
       userLifeEvents: {
         create: lifeEventSlugs.map((slug) => ({
-          lifeEvent: {
-            connect: { slug },
-          },
+          lifeEvent: { connect: { slug } },
         })),
       },
     },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      avatar: true,
-      bio: true,
-      location: true,
-      languages: true,
-      settings: true,
-      subscriptionTier: true,
-      stripeCustomerId: true,
-      mentorProfile: {
-        select: { tagline: true, maxSeekers: true, isAvailable: true },
-      },
-    },
+    select: USER_SELECT,
   });
 
+  const family = randomUUID();
   const accessToken = issueAccessToken(user.id, user.role);
-  const rawRefresh = issueRefreshToken(user.id);
-  const refreshHash = await bcrypt.hash(rawRefresh, 10);
+  const rawRefresh = issueRefreshToken(user.id, family);
+  await storeRefreshToken(user.id, rawRefresh, family);
 
-  await prisma.refreshToken.create({
-    data: {
-      userId: user.id,
-      tokenHash: refreshHash,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    },
+  await writeAuditLog({
+    userId: user.id,
+    action: "SIGNUP",
+    resource: "User",
+    resourceId: user.id,
+    ...reqMeta(req),
   });
 
   res.status(201).json({ user: safeUser(user), accessToken, refreshToken: rawRefresh });
@@ -300,27 +350,19 @@ export async function login(req: Request, res: Response): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { email },
     select: {
-      id: true,
-      name: true,
-      email: true,
+      ...USER_SELECT,
       passwordHash: true,
-      role: true,
-      avatar: true,
-      bio: true,
-      location: true,
-      languages: true,
-      settings: true,
-      subscriptionTier: true,
-      stripeCustomerId: true,
       isBanned: true,
       deletedAt: true,
-      mentorProfile: {
-        select: { tagline: true, maxSeekers: true, isAvailable: true },
-      },
     },
   });
 
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    await writeAuditLog({
+      action: "LOGIN_FAILED",
+      metadata: { email },
+      ...reqMeta(req),
+    });
     res.status(401).json({ error: "Invalid email or password." });
     return;
   }
@@ -329,25 +371,26 @@ export async function login(req: Request, res: Response): Promise<void> {
     res.status(410).json({ error: "Account deactivated." });
     return;
   }
-
   if (user.isBanned) {
     res.status(403).json({ error: "Account suspended." });
     return;
   }
 
+  // Each login starts a fresh token family
+  const family = randomUUID();
   const accessToken = issueAccessToken(user.id, user.role);
-  const rawRefresh = issueRefreshToken(user.id);
-  const refreshHash = await bcrypt.hash(rawRefresh, 10);
+  const rawRefresh = issueRefreshToken(user.id, family);
+  await storeRefreshToken(user.id, rawRefresh, family);
 
-  await prisma.refreshToken.create({
-    data: {
-      userId: user.id,
-      tokenHash: refreshHash,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    },
+  await writeAuditLog({
+    userId: user.id,
+    action: "LOGIN",
+    resource: "User",
+    resourceId: user.id,
+    ...reqMeta(req),
   });
 
-  const { passwordHash: _ph, ...publicUser } = user;
+  const { passwordHash: _ph, isBanned: _b, deletedAt: _d, ...publicUser } = user;
   res.json({ user: safeUser(publicUser), accessToken, refreshToken: rawRefresh });
 }
 
@@ -358,26 +401,7 @@ export async function getProfile(req: AuthRequest, res: Response): Promise<void>
     return;
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      avatar: true,
-      bio: true,
-      location: true,
-      languages: true,
-      settings: true,
-      subscriptionTier: true,
-      stripeCustomerId: true,
-      mentorProfile: {
-        select: { tagline: true, maxSeekers: true, isAvailable: true },
-      },
-    },
-  });
-
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: USER_SELECT });
   if (!user) {
     res.status(404).json({ error: "User not found." });
     return;
@@ -455,24 +479,9 @@ export async function updateProfile(req: AuthRequest, res: Response): Promise<vo
       bio: payload.bio,
       location: payload.location,
       languages: payload.languages,
-      settings: mergedSettings as Prisma.InputJsonValue,
+      settings: mergedSettings as any,
     },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      avatar: true,
-      bio: true,
-      location: true,
-      languages: true,
-      settings: true,
-      subscriptionTier: true,
-      stripeCustomerId: true,
-      mentorProfile: {
-        select: { tagline: true, maxSeekers: true, isAvailable: true },
-      },
-    },
+    select: USER_SELECT,
   });
 
   if (existing.role === "MENTOR" && payload.settings?.mentor) {
@@ -488,31 +497,18 @@ export async function updateProfile(req: AuthRequest, res: Response): Promise<vo
     await prisma.mentorProfile.upsert({
       where: { userId },
       update: mentorData,
-      create: {
-        userId,
-        ...mentorData,
-      },
+      create: { userId, ...mentorData },
     });
   }
 
-  const finalUser = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      avatar: true,
-      bio: true,
-      location: true,
-      languages: true,
-      settings: true,
-      subscriptionTier: true,
-      stripeCustomerId: true,
-      mentorProfile: {
-        select: { tagline: true, maxSeekers: true, isAvailable: true },
-      },
-    },
+  const finalUser = await prisma.user.findUnique({ where: { id: userId }, select: USER_SELECT });
+
+  await writeAuditLog({
+    userId,
+    action: "PROFILE_UPDATE",
+    resource: "User",
+    resourceId: userId,
+    ...reqMeta(req),
   });
 
   res.json({ user: safeUser(finalUser ?? updated) });
@@ -540,15 +536,20 @@ export async function deleteProfile(req: AuthRequest, res: Response): Promise<vo
     return;
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.refreshToken.deleteMany({ where: { userId } });
-
     await tx.user.update({
       where: { id: userId },
-      data: {
-        deletedAt: new Date(),
-      },
+      data: { deletedAt: new Date() },
     });
+  });
+
+  await writeAuditLog({
+    userId,
+    action: "ACCOUNT_DELETE",
+    resource: "User",
+    resourceId: userId,
+    ...reqMeta(req),
   });
 
   res.json({ ok: true });
@@ -561,6 +562,7 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  // Verify JWT signature and expiry
   let payload: jwt.JwtPayload;
   try {
     payload = jwt.verify(token, REFRESH_SECRET) as jwt.JwtPayload;
@@ -570,23 +572,44 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
   }
 
   const userId = payload.sub as string;
-  const tokens = await prisma.refreshToken.findMany({
+  const family = typeof payload.fam === "string" ? payload.fam : null;
+
+  // Fetch all non-expired tokens for this user
+  const allTokens = await prisma.refreshToken.findMany({
     where: { userId, expiresAt: { gt: new Date() } },
   });
 
-  const matched = await Promise.any(
-    tokens.map(async (t) => {
-      const ok = await bcrypt.compare(token, t.tokenHash);
-      if (ok) return t;
-      throw new Error("no match");
-    })
-  ).catch(() => null);
+  // Find the matching token via bcrypt comparison
+  let matched: (typeof allTokens)[number] | null = null;
+  for (const t of allTokens) {
+    if (await bcrypt.compare(token, t.tokenHash)) {
+      matched = t;
+      break;
+    }
+  }
 
   if (!matched) {
+    // If a family exists in the DB but the token wasn't found, this is likely
+    // a stolen-token reuse attempt — invalidate the entire family.
+    if (family) {
+      const familyTokens = await prisma.refreshToken.findMany({
+        where: { userId, family },
+      });
+      if (familyTokens.length > 0) {
+        await prisma.refreshToken.deleteMany({ where: { userId, family } });
+        await writeAuditLog({
+          userId,
+          action: "TOKEN_REUSE_DETECTED",
+          metadata: { family },
+          ...reqMeta(req),
+        });
+      }
+    }
     res.status(401).json({ error: "Refresh token not recognised." });
     return;
   }
 
+  // Re-verify account status before issuing new tokens
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, role: true, deletedAt: true, isBanned: true },
@@ -596,28 +619,29 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
     res.status(401).json({ error: "Account not found." });
     return;
   }
-
   if (user.deletedAt) {
     res.status(410).json({ error: "Account deactivated." });
     return;
   }
-
   if (user.isBanned) {
     res.status(403).json({ error: "Account suspended." });
     return;
   }
 
+  // Rotate: delete used token, issue new pair in the same family
+  const tokenFamily = matched.family;
   const newAccess = issueAccessToken(user.id, user.role);
-  const newRaw = issueRefreshToken(user.id);
-  const newHash = await bcrypt.hash(newRaw, 10);
+  const newRaw = issueRefreshToken(user.id, tokenFamily);
 
   await prisma.refreshToken.delete({ where: { id: matched.id } });
-  await prisma.refreshToken.create({
-    data: {
-      userId,
-      tokenHash: newHash,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    },
+  await storeRefreshToken(userId, newRaw, tokenFamily);
+
+  await writeAuditLog({
+    userId,
+    action: "TOKEN_REFRESH",
+    resource: "User",
+    resourceId: userId,
+    ...reqMeta(req),
   });
 
   res.json({ accessToken: newAccess, refreshToken: newRaw });
@@ -625,12 +649,14 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
 
 export async function logout(req: Request, res: Response): Promise<void> {
   const { refreshToken: token } = req.body as { refreshToken?: string };
+  let userId: string | undefined;
+
   if (token) {
     try {
       const payload = jwt.verify(token, REFRESH_SECRET) as jwt.JwtPayload;
-      const tokens = await prisma.refreshToken.findMany({
-        where: { userId: payload.sub as string },
-      });
+      userId = payload.sub as string;
+
+      const tokens = await prisma.refreshToken.findMany({ where: { userId } });
       for (const t of tokens) {
         if (await bcrypt.compare(token, t.tokenHash)) {
           await prisma.refreshToken.delete({ where: { id: t.id } });
@@ -638,9 +664,17 @@ export async function logout(req: Request, res: Response): Promise<void> {
         }
       }
     } catch {
-      // Silently ignore invalid token on logout.
+      // Invalid token on logout is silently ignored.
     }
   }
+
+  await writeAuditLog({
+    userId,
+    action: "LOGOUT",
+    resource: "User",
+    resourceId: userId,
+    ...reqMeta(req),
+  });
 
   res.json({ ok: true });
 }

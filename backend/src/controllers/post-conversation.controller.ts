@@ -2,12 +2,9 @@ import { Response } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../middleware/auth.middleware";
+
 import { aiService } from "../services/ai.service";
-import {
-  ReminderType,
-  ActionItemStatus,
-  ReminderStatus,
-} from "@prisma/client";
+import { ReminderType, ActionItemStatus, ReminderStatus } from "@prisma/client";
 
 // Validation schemas
 const endConversationSchema = z.object({
@@ -101,7 +98,7 @@ export async function endConversation(
     }
 
     // Convert messages to conversation history format
-    const conversationHistory = conversation.messages.map((msg) => ({
+    const conversationHistory = conversation.messages.map((msg: any) => ({
       sender: msg.sender.name,
       content: msg.content,
     }));
@@ -335,7 +332,7 @@ export async function getActionPlan(
     });
 
     // Add metadata about who should see this item
-    const enrichedItems = actionItems.map((item) => ({
+    const enrichedItems = actionItems.map((item: any) => ({
       ...item,
       isMyAction: item.assignedTo === userId,
       assigneeRole:
@@ -741,7 +738,7 @@ async function createProgressSnapshot(
         conversationId,
         userId: conversation.match.seekerId,
         conversationCount: previousSnapshots.filter(
-          (s) => s.userId === conversation.match.seekerId
+          (s: any) => s.userId === conversation.match.seekerId
         ).length + 1,
         totalActionItems: actionItemCount,
         completedActions: 0,
@@ -755,7 +752,7 @@ async function createProgressSnapshot(
         conversationId,
         userId: conversation.match.mentorId,
         conversationCount: previousSnapshots.filter(
-          (s) => s.userId === conversation.match.mentorId
+          (s: any) => s.userId === conversation.match.mentorId
         ).length + 1,
         totalActionItems: actionItemCount,
         completedActions: 0,

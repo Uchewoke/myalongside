@@ -217,6 +217,7 @@ export default function LandingPage() {
                       width={52}
                       height={52}
                       className="rounded-full bg-violet-100"
+                      unoptimized
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
@@ -265,6 +266,7 @@ export default function LandingPage() {
                       width={40}
                       height={40}
                       className="rounded-full bg-violet-100"
+                      unoptimized
                     />
                     <div>
                       <p className="text-sm font-semibold text-white">Marcus Williams</p>

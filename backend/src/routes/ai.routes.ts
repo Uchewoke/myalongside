@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAdminAccess, requireAuth } from "../middleware/auth.middleware";
+import { requireAdminUser, requireAuth } from "../middleware/auth.middleware";
 import {
   generateIntroSuggestion,
   generateResponseSuggestion,
@@ -17,7 +17,7 @@ const router = Router();
 /**
  * Admin-only safety intelligence endpoint used by the moderation surface.
  */
-router.post("/safety/intelligence", requireAdminAccess, generateSafetyIntelligence);
+router.post("/safety/intelligence", requireAdminUser, generateSafetyIntelligence);
 
 // All AI routes require authentication
 router.use(requireAuth);

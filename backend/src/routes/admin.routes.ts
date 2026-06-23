@@ -1,6 +1,10 @@
 import { Router, Response } from "express";
 import { ReminderService } from "../services/reminder.service";
-import { AuthRequest } from "../middleware/auth.middleware";
+import {
+  AuthRequest,
+  requireAdminServiceToken,
+  requireAdminUser,
+} from "../middleware/auth.middleware";
 
 const router = Router();
 
@@ -12,17 +16,8 @@ const router = Router();
  * Headers: 
  *   x-admin-service-token: ADMIN_SERVICE_TOKEN
  */
-router.post("/reminders/process", async (req: AuthRequest, res: Response) => {
+router.post("/reminders/process", requireAdminServiceToken, async (req: AuthRequest, res: Response) => {
   try {
-    // Verify admin service token
-    const token = req.headers["x-admin-service-token"] as string;
-    const adminToken = process.env.ADMIN_SERVICE_TOKEN;
-
-    if (!token || !adminToken || token !== adminToken) {
-      res.status(403).json({ error: "Unauthorized" });
-      return;
-    }
-
     // Process due reminders
     const sentCount = await ReminderService.processDueReminders();
 
@@ -43,6 +38,7 @@ router.post("/reminders/process", async (req: AuthRequest, res: Response) => {
  */
 router.get(
   "/reminders/stats",
+  requireAdminUser,
   async (req: AuthRequest, res: Response) => {
     try {
       const userId = req.auth?.sub;

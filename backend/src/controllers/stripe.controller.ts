@@ -6,17 +6,17 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2024-06-20",
 });
 
-function tierFromPriceId(priceId?: string | null): "FREE" | "PREMIUM" | "PRO" {
-  if (!priceId) return "PREMIUM";
+function tierFromPriceId(priceId?: string | null): "FREE" | "PLUS" | "PRO" {
+  if (!priceId) return "PLUS";
 
-  const premiumPriceId = process.env.STRIPE_PRICE_PREMIUM;
+  const plusPriceId = process.env.STRIPE_PRICE_PLUS;
   const proPriceId = process.env.STRIPE_PRICE_PRO;
 
   if (proPriceId && priceId === proPriceId) return "PRO";
-  if (premiumPriceId && priceId === premiumPriceId) return "PREMIUM";
+  if (plusPriceId && priceId === plusPriceId) return "PLUS";
   if (priceId.toLowerCase().includes("pro")) return "PRO";
 
-  return "PREMIUM";
+  return "PLUS";
 }
 
 export async function handleStripeWebhook(req: Request, res: Response): Promise<void> {
@@ -61,7 +61,8 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
         await prisma.user.update({
           where: { id: userId },
           data: {
-            subscriptionTier: tierFromPriceId(priceId),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            subscriptionTier: tierFromPriceId(priceId) as any,
             stripeCustomerId:
               typeof session.customer === "string" ? session.customer : undefined,
           },
@@ -74,7 +75,8 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
       if (typeof subscription.customer === "string") {
         await prisma.user.updateMany({
           where: { stripeCustomerId: subscription.customer },
-          data: { subscriptionTier: "FREE" },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          data: { subscriptionTier: "FREE" as any },
         });
       }
     }

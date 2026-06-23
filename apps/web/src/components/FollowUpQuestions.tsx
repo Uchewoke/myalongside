@@ -22,19 +22,12 @@ export const FollowUpQuestions: React.FC<FollowUpQuestionsProps> = ({
   onSelect,
 }) => {
   const user = useAuthStore((state) => state.user);
-  const tier = user?.subscriptionTier || "FREE";
-  if (tier === "FREE") {
-    return (
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-center">
-        <p className="text-blue-700 font-medium">Follow-up Questions are a Premium feature. <span className="underline cursor-pointer text-blue-900">Upgrade to unlock</span>.</p>
-      </div>
-    );
-  }
   const [questions, setQuestions] = useState<FollowUpQuestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const tier = user?.subscriptionTier || "FREE";
 
   const generateQuestions = useCallback(async () => {
     setLoading(true);
@@ -61,6 +54,14 @@ export const FollowUpQuestions: React.FC<FollowUpQuestionsProps> = ({
       setLoading(false);
     }
   }, [conversationId, seekerMessage]);
+
+  if (tier === "FREE") {
+    return (
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-center">
+        <p className="text-blue-700 font-medium">Follow-up Questions are a Plus feature. <span className="underline cursor-pointer text-blue-900">Upgrade to unlock</span>.</p>
+      </div>
+    );
+  }
 
   const handleCopy = (text: string, index: number) => {
     navigator.clipboard.writeText(text);
@@ -129,7 +130,7 @@ export const FollowUpQuestions: React.FC<FollowUpQuestionsProps> = ({
                   className="rounded-lg border border-blue-100 bg-white p-3 space-y-2"
                 >
                   {/* Question */}
-                  <p className="text-sm text-stone-700 font-medium">"{item.question}"</p>
+                  <p className="text-sm text-stone-700 font-medium">&ldquo;{item.question}&rdquo;</p>
 
                   {/* Purpose */}
                   <p className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block">

@@ -29,6 +29,7 @@ export default function MentorCard({ mentor, compact = false }: MentorCardProps)
             width={48}
             height={48}
             className="rounded-full bg-stone-100"
+            unoptimized={mentor.avatar?.includes('dicebear.com')}
           />
           {mentor.availability === "AVAILABLE" && (
             <span className="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full border-2 border-white bg-green-500" />
@@ -72,6 +73,7 @@ export default function MentorCard({ mentor, compact = false }: MentorCardProps)
               width={56}
               height={56}
               className="rounded-full bg-stone-100"
+              unoptimized={mentor.avatar?.includes('dicebear.com')}
             />
             {mentor.availability === "AVAILABLE" && (
               <span className="absolute -right-0.5 -bottom-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-green-500" />
